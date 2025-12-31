@@ -78,34 +78,54 @@ const Dashboard = () => {
 
 
   /* ================= FETCH CLASS DETAILS ================= */
-  useEffect(() => {
-    if (!selectedClassId) return
+ useEffect(() => {
+  if (!selectedClassId) return
 
-    const fetchData = async () => {
-      const data = await getAllStudentsResults(
-        selectedClassId,
-        selectedCategoryId
-      )
+  const fetchData = async () => {
+    try {
+      let data
+
+      if (selectedCategoryId) {
+        // category tanlangan bo‘lsa, API chaqirish
+        data = await getAllStudentsResults(selectedClassId, selectedCategoryId)
+      } else {
+        // category tanlanmagan bo‘lsa, faqat sinfdagi o‘quvchilarni olish
+        const classData = classes.find(c => c.id === selectedClassId)
+        data = {
+          class: classData?.name || '',
+          students: classData?.students || [] // yoki bo‘sh array
+        }
+      }
 
       setSelectedClassData({
         ...data,
         students: Array.isArray(data.students) ? data.students : [],
       })
+    } catch (err) {
+      console.error(err)
+      setSelectedClassData({ class: '', students: [] })
     }
+  }
+
+  fetchData()
+  localStorage.setItem('selectedClassId', selectedClassId)
+  if (selectedCategoryId) localStorage.setItem('selectedCategoryId', selectedCategoryId)
+}, [selectedClassId, selectedCategoryId, classes])
 
 
-    fetchData()
 
-    localStorage.setItem('selectedClassId', selectedClassId)
-    if (selectedCategoryId)
-      localStorage.setItem('selectedCategoryId', selectedCategoryId)
-  }, [selectedClassId, selectedCategoryId])
 
   /* ================= HANDLERS ================= */
   const handleClassSelection = (cls) => {
+    setSelectedClass(cls)
     setSelectedClassId(cls.id)
-    setSelectedClass(cls) // 🔥 SHART
+
+    // agar category hali tanlanmagan bo‘lsa, default category 0 ni set qilamiz
+    if (!selectedCategoryId && categories.length > 0) {
+      setSelectedCategoryId(categories[0].id)
+    }
   }
+
 
 
   const handleCreateClass = async (e) => {
@@ -173,16 +193,27 @@ const Dashboard = () => {
     setNewStudentName('')
     setShowStudentModal(false)
 
-    // 🔥 student table darhol yangilansin
-    const data = await getAllStudentsResults(
-      selectedClassId,
-      selectedCategoryId
-    )
-    setSelectedClassData(data)
+    let data
 
-    // 🔥 sidebar student_count yangilansin
+    if (selectedCategoryId) {
+      data = await getAllStudentsResults(selectedClassId, selectedCategoryId)
+    } else {
+      // category tanlanmagan bo‘lsa, sinfdagi o‘quvchilarni classes state’dan olish
+      const classData = classes.find(c => c.id === selectedClassId)
+      data = {
+        class: classData?.name || '',
+        students: classData?.students || [],
+      }
+    }
+
+    setSelectedClassData({
+      ...data,
+      students: Array.isArray(data.students) ? data.students : [],
+    })
+
     await reloadClasses()
   }
+
 
 
   const handleDeleteStudent = async (id) => {
@@ -356,8 +387,8 @@ const Dashboard = () => {
                   </div>
                 </div>
 
-                {/* Student table yoki empty holat */}
-                {selectedClassData.students.length > 0 ? (
+                {/* Student table yoki empty holat */ }
+                {selectedClassData.students ? (
                   <StudentTable
                     students={selectedClassData.students}
                     onStartQuiz={handleStartQuiz}
