@@ -52,33 +52,30 @@ const Dashboard = () => {
 
 
   /* ================= INITIAL LOAD ================= */
-  useEffect(() => {
-    const init = async () => {
-      setLoading(true)
+ useEffect(() => {
+  const init = async () => {
+    setLoading(true)
+    const classData = await getClasses()
+    const categoryData = await getCategories()
+    const classList = classData.results || classData
 
-      const classData = await getClasses()
-      const categoryData = await getCategories()
+    setClasses(classList)
+    setCategories(categoryData)
 
-      const classList = classData.results || classData
-      setClasses(classList)
-      setCategories(categoryData)
+    const savedClassId = Number(localStorage.getItem('selectedClassId')) || classList?.[0]?.id
+    const savedCategoryId = Number(localStorage.getItem('selectedCategoryId')) || categoryData?.[0]?.id
 
-      const savedClassId =
-        Number(localStorage.getItem('selectedClassId')) ||
-        classList?.[0]?.id
+    setSelectedClassId(savedClassId)
+    setSelectedCategoryId(savedCategoryId)
 
-      const savedCategoryId =
-        Number(localStorage.getItem('selectedCategoryId')) ||
-        categoryData?.[0]?.id
+    // ✅ selectedClass ham set qilinadi
+    setSelectedClass(classList.find(c => c.id === savedClassId) || null)
 
-      setSelectedClassId(savedClassId)
-      setSelectedCategoryId(savedCategoryId)
+    setLoading(false)
+  }
+  init()
+}, [])
 
-      setLoading(false)
-    }
-
-    init()
-  }, [])
 
   /* ================= FETCH CLASS DETAILS ================= */
   useEffect(() => {
