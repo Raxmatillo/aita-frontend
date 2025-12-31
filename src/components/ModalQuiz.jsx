@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { X, CheckCircle, XCircle, ArrowRight, Trophy } from 'lucide-react'
 import { getRandomQuestion, submitAnswer } from '../services/api'
 
-const ModalQuiz = ({ isOpen, onClose, student }) => {
+const ModalQuiz = ({ isOpen, onClose, student, category }) => {
   const [question, setQuestion] = useState(null)
   const [loading, setLoading] = useState(false)
   const [selectedOption, setSelectedOption] = useState(null)
@@ -12,6 +12,7 @@ const ModalQuiz = ({ isOpen, onClose, student }) => {
   const [showResult, setShowResult] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  
   useEffect(() => {
     if (isOpen && student) {
       loadQuestion()
@@ -19,20 +20,28 @@ const ModalQuiz = ({ isOpen, onClose, student }) => {
   }, [isOpen, student])
 
   const loadQuestion = async () => {
-    try {
-      setLoading(true)
-      setSelectedOption(null)
-      setIsCorrect(null)
-      setShowResult(false)
-      
-      const data = await getRandomQuestion(student.id)
+  try {
+    setLoading(true)
+    setSelectedOption(null)
+    setIsCorrect(null)
+    setShowResult(false)
+    
+    const data = await getRandomQuestion(student.id, category)
+    
+    if (data.finished) {
+      // test tugaganini Dashboard ga bildirish
+      onClose() // Modalni yopish
+      return
+    } else {
       setQuestion(data)
-    } catch (error) {
-      console.error('Error loading question:', error)
-    } finally {
-      setLoading(false)
     }
+  } catch (error) {
+    console.error('Error loading question:', error)
+  } finally {
+    setLoading(false)
   }
+}
+
 
   const handleOptionClick = async (option) => {
     if (selectedOption || isSubmitting) return
@@ -94,7 +103,7 @@ const ModalQuiz = ({ isOpen, onClose, student }) => {
           <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between z-10">
             <div>
               <h2 className="text-2xl font-bold text-gray-900">{student.full_name}'s Quiz</h2>
-              <p className="text-sm text-gray-500 mt-1">Select the correct answer</p>
+              <p className="text-sm text-gray-500 mt-1">To'g'ri javobni belgilang</p>
             </div>
             <div className="flex items-center space-x-4">
               <div className="text-right">
@@ -124,7 +133,7 @@ const ModalQuiz = ({ isOpen, onClose, student }) => {
             {loading ? (
               <div className="flex flex-col items-center justify-center py-20">
                 <div className="loading-spinner mb-4"></div>
-                <p className="text-gray-500">Loading question...</p>
+                <p className="text-gray-500">Savol yuklanmoqda...</p>
               </div>
             ) : question ? (
               <div className="space-y-6">
@@ -156,13 +165,13 @@ const ModalQuiz = ({ isOpen, onClose, student }) => {
                         {isCorrect ? (
                           <div className="text-center text-white">
                             <CheckCircle className="w-24 h-24 mx-auto mb-4" />
-                            <p className="text-3xl font-bold">Correct!</p>
+                            <p className="text-3xl font-bold">To'g'ri!</p>
                           </div>
                         ) : (
                           <div className="text-center text-white">
                             <XCircle className="w-24 h-24 mx-auto mb-4" />
                             <p className="text-3xl font-bold">Wrong!</p>
-                            <p className="text-xl mt-2">Correct answer: {question.word}</p>
+                            <p className="text-xl mt-2">To'g'ri javob: {question.word}</p>
                           </div>
                         )}
                       </motion.div>
@@ -216,7 +225,7 @@ const ModalQuiz = ({ isOpen, onClose, student }) => {
                     className="text-center pt-4"
                   >
                     <p className="text-gray-500 flex items-center justify-center space-x-2">
-                      <span>Next question loading</span>
+                      <span>Kegingi savol yuklanmoqda...</span>
                       <ArrowRight className="w-5 h-5 animate-pulse" />
                     </p>
                   </motion.div>
@@ -224,7 +233,7 @@ const ModalQuiz = ({ isOpen, onClose, student }) => {
               </div>
             ) : (
               <div className="text-center py-20">
-                <p className="text-gray-500">No questions available</p>
+                <p className="text-gray-500">Savollar mavjud emas!</p>
               </div>
             )}
           </div>

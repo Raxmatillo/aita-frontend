@@ -1,8 +1,8 @@
 import { useState } from 'react'
-import { Users, Trash2, Edit, Play } from 'lucide-react'
+import { Users, Trash2, Edit, Play, RotateCcw } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 
-const StudentTable = ({ students, onStartQuiz, onDeleteStudent, onEditStudent }) => {
+const StudentTable = ({ students, onStartQuiz, onRestartQuiz, onDeleteStudent, onBeginTest,  onEditStudent }) => {
   const [selectedStudent, setSelectedStudent] = useState(null)
 
   if (!students || students.length === 0) {
@@ -76,28 +76,40 @@ const StudentTable = ({ students, onStartQuiz, onDeleteStudent, onEditStudent })
                 </td>
                 <td className="table-cell">
                   <div className="flex items-center justify-center space-x-2">
-                    <button
-                      onClick={() => onStartQuiz(student)}
-                      className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
-                      title="Start Quiz"
-                    >
-                      <Play className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => onEditStudent(student)}
-                      className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                      title="Edit Student"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => onDeleteStudent(student.id)}
-                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                      title="Delete Student"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
+  <button
+    onClick={() => onBeginTest(student.id)}
+    className="p-2 text-primary-600 hover:bg-primary-50 rounded-lg transition-colors"
+    title="Start Quiz"
+  >
+    <Play className="w-5 h-5" />
+  </button>
+
+  {/* Restart button */}
+  <button
+    onClick={() => onRestartQuiz(student.id)}
+    className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+    title="Restart Quiz"
+  >
+    <RotateCcw className="w-4 h-4" />
+  </button>
+
+  <button
+    onClick={() => onEditStudent(student)}
+    className="p-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+    title="Edit Student"
+  >
+    <Edit className="w-4 h-4" />
+  </button>
+
+  <button
+    onClick={() => onDeleteStudent(student.id)}
+    className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+    title="Delete Student"
+  >
+    <Trash2 className="w-4 h-4" />
+  </button>
+</div>
+
                 </td>
               </motion.tr>
             ))}

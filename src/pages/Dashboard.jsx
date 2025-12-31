@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Plus, Users, Trash2, UserPlus, BookOpen, ChevronDown } from 'lucide-react'
 import Header from '../components/Header'
@@ -10,23 +10,23 @@ import {
   deleteClass,
   createStudent,
   deleteStudent,
-  getClassDetails,
-  getCategories, // <-- Import the new function
+  getCategories,
+  getAllStudentsResults,
+  clearStudentResults,
+  getRandomQuestion,
 } from '../services/api'
-
-
-// Custom Tailwind Classes (Define these in your main CSS file, e.g., index.css or a utils file)
-// .card: bg-white rounded-xl shadow-lg p-6 border border-gray-100
-// .input-field: w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-primary-500 focus:border-primary-500 transition duration-150 ease-in-out
-// .btn-primary: px-4 py-2 bg-primary-600 text-white font-medium rounded-lg shadow-md hover:bg-primary-700 disabled:opacity-50
-// .btn-secondary: px-4 py-2 bg-gray-100 text-gray-700 font-medium rounded-lg shadow-sm hover:bg-gray-200 disabled:opacity-50
-
 
 const Dashboard = () => {
   const [classes, setClasses] = useState([])
-  const [categories, setCategories] = useState([]) // NEW: State for categories
-  const [selectedCategory, setSelectedCategory] = useState(null) // NEW: State for selected filter
+  const [categories, setCategories] = useState([])
+  const [isTestStarted, setIsTestStarted] = useState(false)
   const [selectedClass, setSelectedClass] = useState(null)
+
+
+  const [selectedClassId, setSelectedClassId] = useState(null)
+  const [selectedCategoryId, setSelectedCategoryId] = useState(null)
+  const [selectedClassData, setSelectedClassData] = useState(null)
+
   const [loading, setLoading] = useState(true)
   const [showClassModal, setShowClassModal] = useState(false)
   const [showStudentModal, setShowStudentModal] = useState(false)
@@ -35,167 +35,192 @@ const Dashboard = () => {
   const [newClassName, setNewClassName] = useState('')
   const [newStudentName, setNewStudentName] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  
-  
-  // Memoized function for loading class details, accepts categoryId
-  const loadClassDetails = useCallback(async (classId, categoryId = selectedCategory) => {
-    try {
-        // Pass the categoryId to the API for filtering
-      const data = await getClassDetails(classId, categoryId) 
-      setSelectedClass(data)
-      
-      // OPTIONAL: Update total student count in the sidebar list (though API returns filtered students)
-      // I'll assume the API returns the original total count in `data.total_student_count`
-      // For now, I'll rely on the original class object for the total count display in the sidebar
-      // and update the main content with the filtered list.
-      
-    } catch (error) {
-      console.error('Error loading class details:', error)
-    }
-  }, [selectedCategory])
 
-  const loadClasses = async () => {
-    try {
-      setLoading(true)
-      const classData = await getClasses()
-      const categoryData = await getCategories()
 
-      setClasses(classData.results || classData)
-      setCategories(categoryData)
+  const reloadClasses = async () => {
+    const classData = await getClasses()
+    const classList = classData.results || classData
+    setClasses(classList)
 
-      if ((classData.results?.length > 0 || classData.length > 0)) {
-        const firstClass = classData.results?.[0] || classData[0];
-        // Set the default selected class
-        // We will load details AFTER setting the default category
-        setSelectedClass(firstClass);
-        
-        if (categoryData.length > 0) {
-            // Set first category as selected default
-            setSelectedCategory(categoryData[0].id)
-            // Load details for the first class, filtered by the first category
-            await loadClassDetails(firstClass.id, categoryData[0].id); 
-        } else {
-            // Load details for the first class without category filter
-            await loadClassDetails(firstClass.id, null);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading classes:', error)
-    } finally {
-      setLoading(false)
+    // agar tanlangan sinf o‘chib ketgan bo‘lsa
+    if (!classList.find(c => c.id === selectedClassId)) {
+      setSelectedClassId(classList[0]?.id || null)
+      setSelectedClass(classList[0] || null)
     }
   }
 
-  useEffect(() => {
-    loadClasses()
-  }, []) // Initial load
 
-  // Re-load class details when selectedCategory changes
-  useEffect(() => {
-    if (selectedClass) {
-      // loadClassDetails will use the updated selectedCategory from state
-      loadClassDetails(selectedClass.id, selectedCategory)
-    }
-  }, [selectedCategory, loadClassDetails])
 
-  // Handler for class selection from sidebar
-  const handleClassSelection = async (cls) => {
-    // Only re-load details if a different class is selected
-    if (selectedClass?.id !== cls.id) {
-        setSelectedClass(cls);
-        // Load details for the newly selected class, filtered by the current category
-        await loadClassDetails(cls.id, selectedCategory); 
+  /* ================= INITIAL LOAD ================= */
+  useEffect(() => {
+    const init = async () => {
+      setLoading(true)
+
+      const classData = await getClasses()
+      const categoryData = await getCategories()
+
+      const classList = classData.results || classData
+      setClasses(classList)
+      setCategories(categoryData)
+
+      const savedClassId =
+        Number(localStorage.getItem('selectedClassId')) ||
+        classList?.[0]?.id
+
+      const savedCategoryId =
+        Number(localStorage.getItem('selectedCategoryId')) ||
+        categoryData?.[0]?.id
+
+      setSelectedClassId(savedClassId)
+      setSelectedCategoryId(savedCategoryId)
+
+      setLoading(false)
     }
+
+    init()
+  }, [])
+
+  /* ================= FETCH CLASS DETAILS ================= */
+  useEffect(() => {
+    if (!selectedClassId) return
+
+    const fetchData = async () => {
+      const data = await getAllStudentsResults(
+        selectedClassId,
+        selectedCategoryId
+      )
+
+      setSelectedClassData({
+        ...data,
+        students: Array.isArray(data.students) ? data.students : [],
+      })
+    }
+
+
+    fetchData()
+
+    localStorage.setItem('selectedClassId', selectedClassId)
+    if (selectedCategoryId)
+      localStorage.setItem('selectedCategoryId', selectedCategoryId)
+  }, [selectedClassId, selectedCategoryId])
+
+  /* ================= HANDLERS ================= */
+  const handleClassSelection = (cls) => {
+    setSelectedClassId(cls.id)
+    setSelectedClass(cls) // 🔥 SHART
   }
 
 
   const handleCreateClass = async (e) => {
     e.preventDefault()
-    if (!newClassName.trim()) return
+    await createClass({ name: newClassName })
 
-    try {
-      setSubmitting(true)
-      await createClass({ name: newClassName })
-      setNewClassName('')
-      setShowClassModal(false)
-      await loadClasses() // Full reload to refresh the class list and re-select/load the first one
-    } catch (error) {
-      console.error('Error creating class:', error)
-      alert('Failed to create class')
-    } finally {
-      setSubmitting(false)
-    }
+    setNewClassName('')
+    setShowClassModal(false)
+
+    await reloadClasses() // 🔥 MUHIM
   }
 
-  const handleDeleteClass = async (classId) => {
-    if (!confirm('Are you sure you want to delete this class?')) return
+
+
+  const handleDeleteClass = async (id) => {
+    if (!confirm('Delete class?')) return
+
+    await deleteClass(id)
+    await reloadClasses() // 🔥 MUHIM
+  }
+
+
+  const handleBeginTest = async (studentId, categoryId) => {
+    if (!categoryId) return
+
+    setIsTestStarted(true)
+    console.log('categoryId', categoryId)
 
     try {
-      await deleteClass(classId)
-      // Reload classes to remove the deleted class
-      await loadClasses() 
-      if (selectedClass?.id === classId) {
-        // Find a new class to select
-        const newSelectedClass = classes.find(c => c.id !== classId) || null;
-        setSelectedClass(newSelectedClass);
-        if (newSelectedClass) {
-            await loadClassDetails(newSelectedClass.id, selectedCategory);
-        }
+      const questions = await getRandomQuestion(studentId, categoryId)
+
+      if (questions.finished) {
+        alert("Siz testni allaqachon topshirib bo'lgansiz!")
+      } else {
+        const data = await getAllStudentsResults(selectedClassId, categoryId)
+        setSelectedClassData(data)
+
+        const student = data.students.find(s => s.id === studentId)
+        setSelectedStudent(student)
+        setShowQuizModal(true)
       }
     } catch (error) {
-      console.error('Error deleting class:', error)
-      alert('Failed to delete class')
+
+      // 400 yoki boshqa xatolarni tutib foydalanuvchiga xabar berish
+      if (error.response && error.response.status === 400) {
+        alert("Ushbu kategoriyada test mavjud emas!")
+      } else {
+        alert("Savol olishda xatolik yuz berdi. Iltimos, qayta urinib ko‘ring.")
+      }
     }
   }
+
+
+
+
 
   const handleCreateStudent = async (e) => {
     e.preventDefault()
-    if (!newStudentName.trim() || !selectedClass) return
 
-    try {
-      setSubmitting(true)
-      await createStudent({
-        full_name: newStudentName,
-        class_room: selectedClass.id,
-      })
-      setNewStudentName('')
-      setShowStudentModal(false)
-      // Reload details for the selected class using the current category filter
-      await loadClassDetails(selectedClass.id, selectedCategory) 
-    } catch (error) {
-      console.error('Error creating student:', error)
-      alert('Failed to add student')
-    } finally {
-      setSubmitting(false)
-    }
+    await createStudent({
+      full_name: newStudentName,
+      class_room: selectedClassId,
+    })
+
+    setNewStudentName('')
+    setShowStudentModal(false)
+
+    // 🔥 student table darhol yangilansin
+    const data = await getAllStudentsResults(
+      selectedClassId,
+      selectedCategoryId
+    )
+    setSelectedClassData(data)
+
+    // 🔥 sidebar student_count yangilansin
+    await reloadClasses()
   }
 
-  const handleDeleteStudent = async (studentId) => {
-    if (!confirm('Are you sure you want to delete this student?')) return
 
-    try {
-      await deleteStudent(studentId)
-      // Reload details for the selected class using the current category filter
-      await loadClassDetails(selectedClass.id, selectedCategory) 
-    } catch (error) {
-      console.error('Error deleting student:', error)
-      alert('Failed to delete student')
-    }
+  const handleDeleteStudent = async (id) => {
+    if (!confirm("O‘quvchini o‘chirmoqchimisiz?")) return
+
+    await deleteStudent(id)
+
+    // 🔄 UI ni yangilash
+    const data = await getAllStudentsResults(
+      selectedClassId,
+      selectedCategoryId
+    )
+    setSelectedClassData(data)
   }
 
+
+  const handleRestartQuiz = async (studentId) => {
+    if (!confirm('Bu test natijalarini tozalashni tasdiqlaysizmi?')) return
+    await clearStudentResults(studentId)
+    // Refresh student table
+    const data = await getAllStudentsResults(
+      selectedClassId,
+      selectedCategoryId
+    )
+    setSelectedClassData(data)
+  }
 
   const handleStartQuiz = (student) => {
     setSelectedStudent(student)
     setShowQuizModal(true)
   }
 
-  const handleCloseQuiz = async () => {
+  const handleCloseQuiz = () => {
     setShowQuizModal(false)
     setSelectedStudent(null)
-    // Reload class details to update student stats based on the current filter
-    if (selectedClass) {
-      await loadClassDetails(selectedClass.id, selectedCategory)
-    }
   }
 
   if (loading) {
@@ -203,23 +228,22 @@ const Dashboard = () => {
       <div className="min-h-screen bg-gray-50">
         <Header />
         <div className="flex items-center justify-center h-[calc(100vh-64px)]">
-          {/* Using custom class for spinner */}
-          <div className="loading-spinner"></div> 
+          <div className="loading-spinner"></div>
         </div>
       </div>
     )
   }
 
-  // Helper to find the current category name for display
-  const currentCategoryName = categories.find(cat => cat.id === selectedCategory)?.name;
+  const currentCategoryName = categories.find(
+    (c) => c.id === selectedCategoryId
+  )?.name
 
   return (
     <div className="min-h-screen bg-gray-50">
       <Header />
-
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-          
+
           {/* Classes Sidebar (1/4 width on large screens) */}
           <div className="lg:col-span-1">
             <div className="card sticky top-8">
@@ -252,11 +276,10 @@ const Dashboard = () => {
                       key={cls.id}
                       whileHover={{ scale: 1.01 }}
                       whileTap={{ scale: 0.99 }}
-                      className={`p-3 rounded-xl cursor-pointer transition-all ${
-                        selectedClass?.id === cls.id
-                          ? 'bg-primary-50 border border-primary-500 shadow-sm'
-                          : 'bg-white border border-gray-100 hover:bg-gray-50'
-                      }`}
+                      className={`p-3 rounded-xl cursor-pointer transition-all ${selectedClass?.id === cls.id
+                        ? 'bg-primary-50 border border-primary-500 shadow-sm'
+                        : 'bg-white border border-gray-100 hover:bg-gray-50'
+                        }`}
                       onClick={() => handleClassSelection(cls)}
                     >
                       <div className="flex items-center justify-between">
@@ -286,49 +309,28 @@ const Dashboard = () => {
               )}
             </div>
           </div>
-          
-          {/* Main Content Area (3/4 width on large screens) */}
+
           <div className="lg:col-span-3 space-y-6">
-            {selectedClass ? (
+            {selectedClassData ? (
               <>
-                {/* Class Header with Category Filter and Add Student Button */}
+                {/* Header doim ko‘rinsin */}
                 <div className="card">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    
-                    {/* Class Info */}
-                    <div>
-                      <h2 className="text-3xl font-extrabold text-gray-900">
-                        {selectedClass.name}
+                  <div className="flex items-start justify-between gap-6">
+                    <div className="text-left">
+                      <h2 className="text-3xl font-bold">
+                        {selectedClassData.class}
                       </h2>
-                      <p className="text-gray-500 text-lg mt-1">
-                        {/* Displaying the count of students *currently visible* (i.e., filtered) */}
-                        <span className='font-semibold'>{selectedClass.students?.length || 0}</span> students 
-                        {currentCategoryName && (
-                            <span className='text-sm text-primary-600 ml-1'> (Filtered by {currentCategoryName})</span>
-                        )}
+
+                      <p className="text-gray-500">
+                        {selectedClassData.students?.length || 0} students
+                        {currentCategoryName &&
+                          ` (Filtered by ${currentCategoryName})`}
                       </p>
                     </div>
+                    
 
-                    <div className="flex flex-col sm:flex-row gap-3 ml-auto">
-                        {/* Category Filter */}
-                        {categories.length > 0 && (
-                            <div className="relative w-full sm:w-48">
-                                <select
-                                value={selectedCategory || ''}
-                                onChange={(e) => setSelectedCategory(e.target.value)}
-                                className="input-field appearance-none pr-10 bg-white"
-                                >
-                                {categories.map((cat) => (
-                                    <option key={cat.id} value={cat.id}>
-                                    {cat.name}
-                                    </option>
-                                ))}
-                                </select>
-                                <ChevronDown className="w-5 h-5 absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
-                            </div>
-                        )}
-                        
-                        {/* Add Student Button */}
+                    <div className="flex flex-col gap-3 ml-auto">
+                         {/* Add Student Button */}
                         <button
                             onClick={() => setShowStudentModal(true)}
                             className="btn-primary flex items-center space-x-2 w-full sm:w-auto"
@@ -336,32 +338,62 @@ const Dashboard = () => {
                             <UserPlus className="w-5 h-5" />
                             <span>Add Student</span>
                         </button>
+                        <select
+                          value={selectedCategoryId || ''}
+                          onChange={(e) => setSelectedCategoryId(Number(e.target.value))}
+                          className="input-field w-56"
+                          disabled={categories.length === 0}
+                        >
+                          {categories.length === 0 ? (
+                            <option value="">Kategoriyalar mavjud emas</option>
+                          ) : (
+                            categories.map((c) => (
+                              <option key={c.id} value={c.id}>
+                                {c.name}
+                              </option>
+                            ))
+                          )}
+                        </select>
+
                     </div>
                   </div>
                 </div>
 
-                {/* Students Table */}
-                <StudentTable
-                  students={selectedClass.students || []}
-                  onStartQuiz={handleStartQuiz}
-                  onDeleteStudent={handleDeleteStudent}
-                  onEditStudent={(student) => console.log('Edit', student)}
-                />
+                {/* Student table yoki empty holat */}
+                {selectedClassData.students.length > 0 ? (
+                  <StudentTable
+                    students={selectedClassData.students}
+                    onStartQuiz={handleStartQuiz}
+                    onBeginTest={(studentId) =>
+                      handleBeginTest(studentId, selectedCategoryId)
+                    }
+                    onDeleteStudent={handleDeleteStudent}
+                    onRestartQuiz={handleRestartQuiz}
+                  />
+                ) : (
+                  <div className="card text-center py-10">
+                    <p className="text-gray-500 mb-4">
+                      Ushbu sinfda hali o‘quvchilar mavjud emas.
+                    </p>
+                    <button
+                      onClick={() => setShowStudentModal(true)}
+                      className="btn-primary"
+                    >
+                      Add Student
+                    </button>
+                  </div>
+                )}
+
               </>
             ) : (
-              <div className="card text-center py-20">
-                <BookOpen className="w-20 h-20 text-gray-300 mx-auto mb-4" />
-                <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                  No Class Selected
-                </h3>
-                <p className="text-gray-500">
-                  Select a class from the sidebar or create a new one to get started.
-                </p>
+              <div className="card text-center py-10 text-gray-500">
+                Sinf tanlanmagan
               </div>
             )}
           </div>
         </div>
       </div>
+
 
       {/* Create Class Modal */}
       <AnimatePresence>
@@ -477,12 +509,20 @@ const Dashboard = () => {
         )}
       </AnimatePresence>
 
-      {/* Quiz Modal */}
       {selectedStudent && (
         <ModalQuiz
           isOpen={showQuizModal}
-          onClose={handleCloseQuiz}
           student={selectedStudent}
+          category={selectedCategoryId}
+          onClose={async () => {
+            setShowQuizModal(false)
+            setSelectedStudent(null)
+            const data = await getAllStudentsResults(
+              selectedClassId,
+              selectedCategoryId
+            )
+            setSelectedClassData(data)
+          }}
         />
       )}
     </div>

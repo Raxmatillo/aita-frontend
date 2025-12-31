@@ -8,9 +8,15 @@ import {
   createVocabulary,
   deleteVocabulary,
   getCategories,
+  uploadBulkFiles,
+  createCategory,
 } from '../services/api'
 
 const Library = () => {
+  const [showCategoryModal, setShowCategoryModal] = useState(false)
+  const [newCategoryName, setNewCategoryName] = useState('')
+  const [categorySubmitting, setCategorySubmitting] = useState(false)
+
   const [vocabularies, setVocabularies] = useState([])
   const [categories, setCategories] = useState([])
   const [selectedCategory, setSelectedCategory] = useState('all')
@@ -19,6 +25,36 @@ const Library = () => {
   const [loading, setLoading] = useState(true)
   const [showAddModal, setShowAddModal] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false)
+  const [bulkFiles, setBulkFiles] = useState([]) // { file, word } array
+  const [bulkCategory, setBulkCategory] = useState('')
+
+  // ================= CATEGORY CREATE =================
+const handleCreateCategory = async (e) => {
+  e.preventDefault()
+
+  if (!newCategoryName.trim()) return
+
+  try {
+    setCategorySubmitting(true)
+
+    await createCategory({ name: newCategoryName })
+
+    setNewCategoryName('')
+    setShowCategoryModal(false)
+
+    // 🔥 kategoriyalarni qayta yuklash
+    const cats = await getCategories()
+    setCategories(cats)
+  } catch (error) {
+    console.error('Create category error:', error)
+    alert('Kategoriya qo‘shib bo‘lmadi')
+  } finally {
+    setCategorySubmitting(false)
+  }
+}
+
 
   const [newVocab, setNewVocab] = useState({
     word: '',
@@ -53,6 +89,48 @@ const Library = () => {
       setLoading(false)
     }
   }
+
+  const handleBulkFiles = (files) => {
+    const images = files.filter((f) => f.type.startsWith('image/'))
+    const newFiles = images.map((file) => {
+      // fayl nomidan kengaytmani olib tashlash
+      const word = file.name.replace(/\.[^/.]+$/, "")
+      return { file, word }
+    })
+    setBulkFiles((prev) => [...prev, ...newFiles])
+  }
+
+  const handleBulkUpload = async () => {
+  if (!bulkCategory) {
+    alert('Please select a category')
+    return
+  }
+  if (bulkFiles.some((bf) => !bf.word)) {
+    alert('Please fill in all words')
+    return
+  }
+
+
+
+  try {
+    setSubmitting(true)  // optional: spinner
+    const res = await uploadBulkFiles(bulkFiles, bulkCategory)
+    console.log('Uploaded:', res)
+
+    // Reset modal and state
+    setBulkFiles([])
+    setBulkCategory('')
+    setShowBulkUploadModal(false)
+
+    // Refresh vocabularies
+    await loadData()
+  } catch (error) {
+    console.error('Bulk upload failed:', error)
+    alert('Bulk upload failed')
+  } finally {
+    setSubmitting(false)
+  }
+}
 
 
   const handleImageChange = (e) => {
@@ -123,6 +201,14 @@ const Library = () => {
               </p>
             </div>
             <button
+            onClick={() => setShowBulkUploadModal(true)}
+            className="btn-secondary flex items-center space-x-2"
+          >
+            <Plus className="w-5 h-5" />
+            <span>Ko'p yuklash</span>
+          </button>
+
+            <button
               onClick={() => setShowAddModal(true)}
               className="btn-primary flex items-center space-x-2"
             >
@@ -154,17 +240,26 @@ const Library = () => {
               <Filter className="w-5 h-5 text-gray-500" />
               <select
                 value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
+                onChange={(e) => {
+                  if (e.target.value === '__add__') {
+                    setShowCategoryModal(true)
+                  } else {
+                    setSelectedCategory(e.target.value)
+                  }
+                }}
                 className="input-field"
               >
                 <option value="all">All Categories</option>
+
                 {categories.map((category) => (
                   <option key={category.id} value={category.id}>
                     {category.name}
                   </option>
-                ))} 
+                ))}
 
+                <option value="__add__">➕ Kategoriya qo‘shish</option>
               </select>
+
             </div>
 
             {/* View Mode Toggle */}
@@ -258,6 +353,7 @@ const Library = () => {
             layout
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
           >
+
             <AnimatePresence>
               {filteredVocabularies.map((vocab) => (
                 <motion.div
@@ -444,7 +540,11 @@ const Library = () => {
                     disabled={submitting}
                     className="flex-1 btn-primary"
                   >
-                    {submitting ? 'Adding...' : 'Add Vocabulary'}
+                    {submitting ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      'Add Vocabulary'
+                    )}
                   </button>
                 </div>
               </form>
@@ -452,6 +552,180 @@ const Library = () => {
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence>
+  {showCategoryModal && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={() => setShowCategoryModal(false)}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-2xl font-bold text-gray-900 mb-4">
+          Kategoriya qo‘shish
+        </h3>
+
+        <form onSubmit={handleCreateCategory} className="space-y-4">
+          <input
+            type="text"
+            value={newCategoryName}
+            onChange={(e) => setNewCategoryName(e.target.value)}
+            className="input-field"
+            placeholder="Masalan: Fruits"
+            autoFocus
+            required
+          />
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={() => setShowCategoryModal(false)}
+              className="flex-1 btn-secondary"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={categorySubmitting}
+              className="flex-1 btn-primary"
+            >
+              {categorySubmitting ? 'Adding...' : 'Add'}
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
+<AnimatePresence>
+  {showBulkUploadModal && (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={() => setShowBulkUploadModal(false)}
+    >
+      <motion.div
+        initial={{ scale: 0.9, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.9, opacity: 0 }}
+        className="bg-white rounded-2xl shadow-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="text-2xl font-bold text-gray-900 mb-4">
+          Bulk Upload Vocabulary
+        </h3>
+
+        {/* Category select */}
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            Category
+          </label>
+          <select
+            value={bulkCategory}
+            onChange={(e) => setBulkCategory(e.target.value)}
+            className="input-field w-full"
+          >
+            <option value="">Select category</option>
+            {categories.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Drag & Drop Zone */}
+        <div
+          className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-primary-500 transition-colors cursor-pointer mb-4"
+          onDragOver={(e) => e.preventDefault()}
+          onDrop={(e) => {
+            e.preventDefault()
+            handleBulkFiles(Array.from(e.dataTransfer.files))
+          }}
+        >
+          <p className="text-gray-500">Drag & drop images here or click to select</p>
+          <input
+            type="file"
+            multiple
+            accept="image/*"
+            className="hidden"
+            id="bulk-upload-input"
+            onChange={(e) => handleBulkFiles(Array.from(e.target.files))}
+          />
+          <label htmlFor="bulk-upload-input" className="cursor-pointer text-blue-600 underline">
+            Browse files
+          </label>
+        </div>
+
+
+        {/* Preview & Word Input */}
+        {bulkFiles.length > 0 && (
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-4 max-h-96 overflow-y-auto">
+            {bulkFiles.map((bf, index) => (
+              <div key={index} className="border rounded-lg p-2 relative">
+                <img
+                  src={URL.createObjectURL(bf.file)}
+                  alt="Preview"
+                  className="w-full h-24 object-cover rounded mb-2"
+                />
+                <input
+                  type="text"
+                  placeholder="Word"
+                  value={bf.word}
+                  onChange={(e) => {
+                    const updated = [...bulkFiles]
+                    updated[index].word = e.target.value
+                    setBulkFiles(updated)
+                  }}
+                  className="input-field w-full text-sm"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setBulkFiles((prev) => prev.filter((_, i) => i !== index))
+                  }}
+                  className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-full text-xs"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex justify-end space-x-3">
+          <button
+            onClick={() => setShowBulkUploadModal(false)}
+            className="btn-secondary"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleBulkUpload}
+            disabled={submitting}
+            className="btn-primary flex items-center justify-center"
+          >
+            {submitting ? (
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            ) : (
+              'Upload All'
+            )}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  )}
+</AnimatePresence>
+
     </div>
   )
 }

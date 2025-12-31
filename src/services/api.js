@@ -102,6 +102,12 @@ export const getToken = () => {
 // Classes API
 // ============================================================================
 
+export const createCategory = async (data) => {
+  const res = await api.post('/categories/', data)
+  return res.data
+}
+
+
 export const getClasses = async () => {
   const response = await api.get('/classes/')
   return response.data
@@ -178,6 +184,43 @@ export const updateVocabulary = async (vocabId, formData) => {
   return response.data
 }
 
+// services/api.js
+export const uploadBulkFiles = async (bulkFiles, categoryId) => {
+  const formData = new FormData()
+  bulkFiles.forEach((bf) => {
+    formData.append('images', bf.file)
+    formData.append('words', bf.word)
+  })
+  formData.append('category', categoryId)
+
+  const response = await api.post('/vocabularies/bulk/', formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  })
+  return response.data
+}
+
+
+
+export const bulkCreateVocabulary = async (categoryId, filesWithWords) => {
+  // filesWithWords = [{ file: File, word: string }, ...]
+  const formData = new FormData()
+  formData.append('category', categoryId)
+
+  filesWithWords.forEach((fw) => {
+    formData.append('images', fw.file)
+    formData.append('words', fw.word)
+  })
+
+  const response = await api.post('/vocabularies/bulk/', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
+
+  return response.data
+}
+
+
 export const deleteVocabulary = async (vocabId) => {
   const response = await api.delete(`/vocabularies/${vocabId}/`)
   return response.data
@@ -200,11 +243,13 @@ export const getCategories = async () => {
 // Test API
 // ============================================================================
 
-export const getRandomQuestion = async (studentId, categories = null) => {
-  const params = categories ? { categories: categories.join(',') } : {}
-  const response = await api.get(`/test/${studentId}/random/`, { params })
+export const getRandomQuestion = async (studentId, category = null) => {
+  const response = await api.get(`/test/${studentId}/random/`, {
+    params: { category }
+  })
   return response.data
 }
+
 
 export const submitAnswer = async (studentId, answerData) => {
   const response = await api.post(`/test/${studentId}/answer/`, answerData)
@@ -217,6 +262,11 @@ export const submitAnswer = async (studentId, answerData) => {
 
 export const getStudentResults = async (studentId) => {
   const response = await api.get(`/results/${studentId}/`)
+  return response.data
+}
+
+export const getAllStudentsResults = async (classId, categoryId) => {
+  const response = await api.get(`/results/${classId}?category=${categoryId}`)
   return response.data
 }
 

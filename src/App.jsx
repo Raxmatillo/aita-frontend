@@ -4,6 +4,8 @@ import React from "react";
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Library from './pages/Library'
+import Register from './pages/Register'
+
 import ProtectedRoute from './components/ProtectedRoute'
 import { getToken } from './services/api'
 
@@ -35,6 +37,11 @@ function App() {
           <Navigate to="/dashboard" replace /> : 
           <Login setIsAuthenticated={setIsAuthenticated} />
         } 
+      />
+    
+      <Route 
+        path="/register"
+        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <Register />}
       />
       
       <Route
